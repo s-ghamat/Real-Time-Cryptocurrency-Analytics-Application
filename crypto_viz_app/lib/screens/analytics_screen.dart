@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../providers/crypto_provider.dart';
-import '../widgets/advanced_analytics_charts.dart';
+import '../widgets/advanced_charts.dart';
 import '../models/crypto_model.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -30,8 +29,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E2139),
-                border: Border(
-                  bottom: BorderSide(color: const Color(0xFF2A2D47), width: 1),
+                border: const Border(
+                  bottom: BorderSide(color: Color(0xFF2A2D47), width: 1),
                 ),
               ),
               child: Row(
@@ -121,13 +120,13 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                               final crypto = provider.cryptos[index];
                               final isSelected = selectedCrypto?.id == crypto.id;
                               
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                selectedCrypto = crypto;
-                _calculatedPriceChangePercent = null; // Réinitialiser pour forcer le recalcul
-              });
-            },
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    selectedCrypto = crypto;
+                                    _calculatedPriceChangePercent = null; // Réinitialiser pour forcer le recalcul
+                                  });
+                                },
                                 child: Container(
                                   margin: const EdgeInsets.only(right: 12),
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -620,9 +619,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           _buildAnalysisRow('Volume/MCap Ratio', '${(volumeRatio * 100).toStringAsFixed(2)}%', Icons.pie_chart),
           _buildAnalysisRow('Liquidity', liquidity, Icons.water_drop, color: liquidityColor),
           _buildAnalysisRow('Market Cap Rank', '#${crypto.marketCapRank}', Icons.leaderboard),
-          _buildAnalysisRow('Price Change 24h', '${crypto.priceChangePercentage24h >= 0 ? '+' : ''}${crypto.priceChangePercentage24h.toStringAsFixed(2)}%', 
-              crypto.priceChangePercentage24h >= 0 ? Icons.trending_up : Icons.trending_down,
-              color: crypto.priceChangePercentage24h >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252)),
+          _buildAnalysisRow(
+            'Price Change 24h',
+            '${crypto.priceChangePercentage24h >= 0 ? '+' : ''}${crypto.priceChangePercentage24h.toStringAsFixed(2)}%', 
+            crypto.priceChangePercentage24h >= 0 ? Icons.trending_up : Icons.trending_down,
+            color: crypto.priceChangePercentage24h >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
+          ),
         ],
       ),
     );
@@ -803,11 +805,19 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildStatCard('Price Range', '\$${(crypto.currentPrice * 0.9).toStringAsFixed(2)} - \$${(crypto.currentPrice * 1.1).toStringAsFixed(2)}', Icons.show_chart),
+                child: _buildStatCard(
+                  'Price Range',
+                  '\$${(crypto.currentPrice * 0.9).toStringAsFixed(2)} - \$${(crypto.currentPrice * 1.1).toStringAsFixed(2)}',
+                  Icons.show_chart,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildStatCard('Volatility', '${((crypto.totalVolume / crypto.marketCap) * 100).toStringAsFixed(2)}%', Icons.waves),
+                child: _buildStatCard(
+                  'Volatility',
+                  '${((crypto.totalVolume / crypto.marketCap) * 100).toStringAsFixed(2)}%',
+                  Icons.waves,
+                ),
               ),
             ],
           ),

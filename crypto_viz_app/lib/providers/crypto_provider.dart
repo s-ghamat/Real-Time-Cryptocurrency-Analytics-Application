@@ -5,11 +5,10 @@ import '../models/news_model.dart';
 import '../services/crypto_service.dart';
 import '../services/crypto_news_service.dart';
 import '../services/coingecko_service.dart';
-import '../services/api_gateway_service.dart';
 
 class CryptoProvider with ChangeNotifier {
   final CoinGeckoService _coinGeckoService = CoinGeckoService();
-  final ApiGatewayService _apiGatewayService = ApiGatewayService();
+  final CryptoService _cryptoService = CryptoService();
   final CryptoNewsService _newsService = CryptoNewsService();
   
   List<CryptoModel> _cryptos = [];
@@ -31,19 +30,26 @@ class CryptoProvider with ChangeNotifier {
   String get error => _error;
   
   // Statistiques calculées
-  double get totalMarketCap => _cryptos.fold(0, (sum, crypto) => sum + crypto.marketCap);
-  double get averageChange => _cryptos.isEmpty ? 0 : 
-    _cryptos.fold(0.0, (sum, crypto) => sum + crypto.priceChangePercentage24h) / _cryptos.length;
+  double get totalMarketCap =>
+      _cryptos.fold(0, (sum, crypto) => sum + crypto.marketCap);
+
+  double get averageChange => _cryptos.isEmpty
+      ? 0
+      : _cryptos.fold(
+              0.0, (sum, crypto) => sum + crypto.priceChangePercentage24h) /
+          _cryptos.length;
   
   List<CryptoModel> get topGainers => _cryptos
-    .where((crypto) => crypto.priceChangePercentage24h > 0)
-    .toList()
-    ..sort((a, b) => b.priceChangePercentage24h.compareTo(a.priceChangePercentage24h));
+      .where((crypto) => crypto.priceChangePercentage24h > 0)
+      .toList()
+    ..sort((a, b) =>
+        b.priceChangePercentage24h.compareTo(a.priceChangePercentage24h));
     
   List<CryptoModel> get topLosers => _cryptos
-    .where((crypto) => crypto.priceChangePercentage24h < 0)
-    .toList()
-    ..sort((a, b) => a.priceChangePercentage24h.compareTo(b.priceChangePercentage24h));
+      .where((crypto) => crypto.priceChangePercentage24h < 0)
+      .toList()
+    ..sort((a, b) =>
+        a.priceChangePercentage24h.compareTo(b.priceChangePercentage24h));
 
   /// Recherche des cryptomonnaies
   void searchCryptos(String query) {
@@ -59,7 +65,7 @@ class CryptoProvider with ChangeNotifier {
     } else {
       _filteredCryptos = _cryptos.where((crypto) {
         return crypto.name.toLowerCase().contains(_searchQuery) ||
-               crypto.symbol.toLowerCase().contains(_searchQuery);
+            crypto.symbol.toLowerCase().contains(_searchQuery);
       }).toList();
     }
   }
@@ -103,36 +109,32 @@ class CryptoProvider with ChangeNotifier {
       _setLoading(true);
       _error = '';
       
-      // Essayer d'abord l'API Gateway (données depuis Kafka)
-      final isApiGatewayAvailable = await _apiGatewayService.isAvailable();
-      
-      if (isApiGatewayAvailable) {
+      // 1) Essayer d'abord le service principal (API interne / Gateway)
+      try {
         if (kDebugMode) {
-          print('🔄 Chargement des cryptos depuis l\'API Gateway (Kafka)...');
+          print('🔄 Chargement des cryptos depuis CryptoService (API interne)...');
         }
-        
-        try {
-          final cryptos = await _apiGatewayService.getTopCryptos(limit: limit);
-          
-          if (cryptos.isEmpty) {
-            throw Exception('Aucune crypto dans l\'API Gateway');
-          } else {
-            _cryptos = cryptos;
-            _filterCryptos();
-            if (kDebugMode) {
-              print('✅ ${cryptos.length} cryptos chargées depuis l\'API Gateway');
-            }
-            notifyListeners();
-            return;
-          }
-        } catch (e) {
-          if (kDebugMode) {
-            print('⚠️ Erreur API Gateway, fallback vers CoinGecko: $e');
-          }
+
+        final cryptos = await _cryptoService.getTopCryptos(limit: limit);
+
+        if (cryptos.isEmpty) {
+          throw Exception('Aucune crypto retournée par CryptoService');
+        }
+
+        _cryptos = cryptos;
+        _filterCryptos();
+        if (kDebugMode) {
+          print('✅ ${cryptos.length} cryptos chargées depuis CryptoService');
+        }
+        notifyListeners();
+        return;
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Erreur CryptoService, fallback vers CoinGecko: $e');
         }
       }
       
-      // Fallback vers CoinGecko
+      // 2) Fallback vers CoinGecko
       if (kDebugMode) {
         print('🔄 Chargement des cryptos depuis CoinGecko...');
       }
@@ -183,7 +185,6 @@ class CryptoProvider with ChangeNotifier {
     await loadInitialData();
   }
 
-
   /// Filtre les cryptos par critères
   List<CryptoModel> filterCryptos({
     double? minPrice,
@@ -194,19 +195,27 @@ class CryptoProvider with ChangeNotifier {
     var filtered = List<CryptoModel>.from(_cryptos);
     
     if (minPrice != null) {
-      filtered = filtered.where((crypto) => crypto.currentPrice >= minPrice).toList();
+      filtered = filtered
+          .where((crypto) => crypto.currentPrice >= minPrice)
+          .toList();
     }
     
     if (maxPrice != null) {
-      filtered = filtered.where((crypto) => crypto.currentPrice <= maxPrice).toList();
+      filtered = filtered
+          .where((crypto) => crypto.currentPrice <= maxPrice)
+          .toList();
     }
     
     if (onlyGainers == true) {
-      filtered = filtered.where((crypto) => crypto.priceChangePercentage24h > 0).toList();
+      filtered = filtered
+          .where((crypto) => crypto.priceChangePercentage24h > 0)
+          .toList();
     }
     
     if (onlyLosers == true) {
-      filtered = filtered.where((crypto) => crypto.priceChangePercentage24h < 0).toList();
+      filtered = filtered
+          .where((crypto) => crypto.priceChangePercentage24h < 0)
+          .toList();
     }
     
     return filtered;

@@ -1,478 +1,241 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:intl/intl.dart';
 import '../models/crypto_model.dart';
 
-class AdvancedCryptoCharts extends StatefulWidget {
+/// Main widget used in AnalyticsScreen
+class AdvancedAnalyticsCharts extends StatefulWidget {
   final CryptoModel crypto;
-  final List<double> priceHistory;
-  final List<double> volumeHistory;
+  final String timeframe;
+  final ValueChanged<double>? onPriceChangeCalculated;
 
-  const AdvancedCryptoCharts({
+  const AdvancedAnalyticsCharts({
     super.key,
     required this.crypto,
-    this.priceHistory = const [],
-    this.volumeHistory = const [],
+    required this.timeframe,
+    this.onPriceChangeCalculated,
   });
 
   @override
-  State<AdvancedCryptoCharts> createState() => _AdvancedCryptoChartsState();
+  State<AdvancedAnalyticsCharts> createState() =>
+      _AdvancedAnalyticsChartsState();
 }
 
-class _AdvancedCryptoChartsState extends State<AdvancedCryptoCharts>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  int _selectedChartType = 0;
+/// Optional wrapper in case other code uses AdvancedCryptoCharts
+class AdvancedCryptoCharts extends AdvancedAnalyticsCharts {
+  const AdvancedCryptoCharts({
+    super.key,
+    required CryptoModel crypto,
+    required String timeframe,
+    ValueChanged<double>? onPriceChangeCalculated,
+  }) : super(
+          crypto: crypto,
+          timeframe: timeframe,
+          onPriceChangeCalculated: onPriceChangeCalculated,
+        );
+}
+
+class _AdvancedAnalyticsChartsState extends State<AdvancedAnalyticsCharts> {
+  late List<CandleData> _candles;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _generateData();
   }
 
   @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  void didUpdateWidget(covariant AdvancedAnalyticsCharts oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.crypto.id != widget.crypto.id ||
+        oldWidget.timeframe != widget.timeframe) {
+      _generateData();
+    }
+  }
+
+  void _generateData() {
+    // Nombre de points selon la période
+    int count;
+    switch (widget.timeframe) {
+      case '1H':
+        count = 12; // 5min candles
+        break;
+      case '4H':
+        count = 24; // 10min candles
+        break;
+      case '7D':
+        count = 42; // ~4h candles
+        break;
+      case '30D':
+        count = 60; // ~12h candles
+        break;
+      case '24H':
+      default:
+        count = 24; // 1h candles
+        break;
+    }
+
+    final basePrice = widget.crypto.currentPrice;
+    final dailyChangePct = widget.crypto.priceChangePercentage24h;
+    final rnd = math.Random(widget.crypto.id.hashCode ^
+        widget.timeframe.hashCode ^
+        basePrice.toInt());
+
+    final List<CandleData> candles = [];
+    double currentPrice = basePrice /
+        (1 + (dailyChangePct / 100.0) * 0.5); // point de départ approximatif
+
+    final now = DateTime.now();
+    final totalMinutes = _timeframeToMinutes(widget.timeframe);
+    final stepMinutes = count == 0 ? 60 : (totalMinutes / count).clamp(5, 720);
+
+    for (int i = 0; i < count; i++) {
+      // Trend léger basé sur la variation 24h
+      final t = i / math.max(1, count - 1);
+      final trendFactor = 1 + (dailyChangePct / 100.0) * (t - 0.5) * 0.6;
+
+      final noise = (rnd.nextDouble() - 0.5) * 0.02; // ±2 %
+      final open = currentPrice;
+      final close = currentPrice * (trendFactor + noise);
+
+      final high = math.max(open, close) * (1 + rnd.nextDouble() * 0.01);
+      final low = math.min(open, close) * (1 - rnd.nextDouble() * 0.01);
+
+      final time = now.subtract(Duration(
+          minutes: (totalMinutes - i * stepMinutes).round()));
+
+      candles.add(
+        CandleData(
+          time: time,
+          open: open,
+          high: high,
+          low: low,
+          close: close,
+        ),
+      );
+
+      currentPrice = close;
+    }
+
+    _candles = candles;
+
+    // notifier le changement de prix réel sur la période simulée
+    if (_candles.isNotEmpty && widget.onPriceChangeCalculated != null) {
+      final first = _candles.first.open;
+      final last = _candles.last.close;
+      final percent = ((last - first) / first) * 100;
+      widget.onPriceChangeCalculated!(percent);
+    }
+
+    setState(() {});
+  }
+
+  int _timeframeToMinutes(String timeframe) {
+    switch (timeframe) {
+      case '1H':
+        return 60;
+      case '4H':
+        return 240;
+      case '24H':
+        return 1440;
+      case '7D':
+        return 7 * 24 * 60;
+      case '30D':
+        return 30 * 24 * 60;
+      default:
+        return 1440;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 400,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E2139),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF2A2D47)),
-      ),
-      child: Column(
-        children: [
-          // En-tête avec sélecteur de graphique
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: Color(0xFF2A2D47), width: 1),
-              ),
-            ),
-            child: Row(
-              children: [
-                Text(
-                  '${widget.crypto.name} Charts',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2D47),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    indicator: BoxDecoration(
-                      color: const Color(0xFF4A90E2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    labelColor: Colors.white,
-                    unselectedLabelColor: const Color(0xFF8B93A7),
-                    labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-                    tabs: const [
-                      Tab(text: 'Line'),
-                      Tab(text: 'Candle'),
-                      Tab(text: 'Volume'),
-                      Tab(text: 'RSI'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    if (_candles.isEmpty) {
+      return const SizedBox(
+        height: 260,
+        child: Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
           ),
-          
-          // Contenu des graphiques
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildLineChart(),
-                _buildCandlestickChart(),
-                _buildVolumeChart(),
-                _buildRSIChart(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLineChart() {
-    final priceData = _generatePriceData();
-    
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: LineChart(
-        LineChartData(
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            horizontalInterval: widget.crypto.currentPrice / 5,
-            getDrawingHorizontalLine: (value) {
-              return FlLine(
-                color: const Color(0xFF2A2D47),
-                strokeWidth: 1,
-              );
-            },
-          ),
-          titlesData: FlTitlesData(
-            show: true,
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 30,
-                interval: 5,
-                getTitlesWidget: (value, meta) {
-                  return Text(
-                    '${value.toInt()}h',
-                    style: const TextStyle(
-                      color: Color(0xFF8B93A7),
-                      fontSize: 10,
-                    ),
-                  );
-                },
-              ),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 60,
-                getTitlesWidget: (value, meta) {
-                  return Text(
-                    '\$${value.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                      color: Color(0xFF8B93A7),
-                      fontSize: 10,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          borderData: FlBorderData(show: false),
-          minX: 0,
-          maxX: 24,
-          minY: widget.crypto.currentPrice * 0.95,
-          maxY: widget.crypto.currentPrice * 1.05,
-          lineBarsData: [
-            LineChartBarData(
-              spots: priceData,
-              isCurved: true,
-              gradient: const LinearGradient(
-                colors: [Color(0xFF4A90E2), Color(0xFF357ABD)],
-              ),
-              barWidth: 3,
-              isStrokeCapRound: true,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF4A90E2).withOpacity(0.3),
-                    const Color(0xFF4A90E2).withOpacity(0.05),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildCandlestickChart() {
-    final candleData = _generateCandlestickData();
-    
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        height: 250,
-        child: CustomPaint(
-          painter: CandlestickPainter(candleData),
-          size: Size.infinite,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVolumeChart() {
-    final volumeData = _generateVolumeData();
-    
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: BarChart(
-        BarChartData(
-          alignment: BarChartAlignment.spaceAround,
-          maxY: volumeData.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2,
-          gridData: FlGridData(
-            show: true,
-            drawVerticalLine: false,
-            horizontalInterval: volumeData.map((e) => e.y).reduce((a, b) => a > b ? a : b) / 5,
-            getDrawingHorizontalLine: (value) {
-              return FlLine(
-                color: const Color(0xFF2A2D47),
-                strokeWidth: 1,
-              );
-            },
-          ),
-          titlesData: FlTitlesData(
-            show: true,
-            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 30,
-                getTitlesWidget: (value, meta) {
-                  return Text(
-                    '${value.toInt()}h',
-                    style: const TextStyle(
-                      color: Color(0xFF8B93A7),
-                      fontSize: 10,
-                    ),
-                  );
-                },
-              ),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 50,
-                getTitlesWidget: (value, meta) {
-                  return Text(
-                    '${(value / 1000000).toStringAsFixed(1)}M',
-                    style: const TextStyle(
-                      color: Color(0xFF8B93A7),
-                      fontSize: 10,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-          borderData: FlBorderData(show: false),
-          barGroups: volumeData.asMap().entries.map((entry) {
-            return BarChartGroupData(
-              x: entry.key,
-              barRods: [
-                BarChartRodData(
-                  toY: entry.value.y,
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      const Color(0xFF4A90E2).withOpacity(0.8),
-                      const Color(0xFF4A90E2).withOpacity(0.4),
-                    ],
-                  ),
-                  width: 8,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    topRight: Radius.circular(4),
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRSIChart() {
-    final rsiData = _generateRSIData();
-    
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Indicateurs RSI
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2A2D47),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildRSIIndicator('RSI (14)', rsiData.last.y, 70, 30),
-                _buildRSIIndicator('MACD', 0.12, double.infinity, double.negativeInfinity),
-                _buildRSIIndicator('Bollinger', widget.crypto.currentPrice, 
-                  widget.crypto.currentPrice * 1.02, widget.crypto.currentPrice * 0.98),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Graphique RSI
-          Expanded(
-            child: LineChart(
-              LineChartData(
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 20,
-                  getDrawingHorizontalLine: (value) {
-                    Color lineColor = const Color(0xFF2A2D47);
-                    if (value == 70 || value == 30) {
-                      lineColor = value == 70 ? Colors.red.withOpacity(0.5) : Colors.green.withOpacity(0.5);
-                    }
-                    return FlLine(color: lineColor, strokeWidth: 1);
-                  },
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 30,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          '${value.toInt()}h',
-                          style: const TextStyle(color: Color(0xFF8B93A7), fontSize: 10),
-                        );
-                      },
-                    ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 40,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          value.toInt().toString(),
-                          style: const TextStyle(color: Color(0xFF8B93A7), fontSize: 10),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                borderData: FlBorderData(show: false),
-                minX: 0,
-                maxX: 24,
-                minY: 0,
-                maxY: 100,
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: rsiData,
-                    isCurved: true,
-                    color: const Color(0xFFFF9800),
-                    barWidth: 2,
-                    isStrokeCapRound: true,
-                    dotData: const FlDotData(show: false),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRSIIndicator(String label, double value, double upperBound, double lowerBound) {
-    Color valueColor = const Color(0xFF8B93A7);
-    if (upperBound != double.infinity && value > upperBound) {
-      valueColor = Colors.red;
-    } else if (lowerBound != double.negativeInfinity && value < lowerBound) {
-      valueColor = Colors.green;
+      );
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF8B93A7),
-            fontSize: 10,
+        // Candlestick chart
+        Container(
+          height: 220,
+          decoration: BoxDecoration(
+            color: const Color(0xFF151827),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF2A2D47)),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: CustomPaint(
+            painter: CandlestickPainter(_candles),
+            child: Container(),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value.toStringAsFixed(2),
-          style: TextStyle(
-            color: valueColor,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
+        const SizedBox(height: 12),
+        // Volume / range bar chart (approx)
+        Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: const Color(0xFF151827),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF2A2D47)),
+          ),
+          padding:
+              const EdgeInsets.only(left: 12, right: 12, top: 8, bottom: 8),
+          child: BarChart(
+            BarChartData(
+              borderData: FlBorderData(show: false),
+              gridData: FlGridData(show: false),
+              titlesData: FlTitlesData(show: false),
+              barGroups: _buildVolumeBars(),
+            ),
           ),
         ),
       ],
     );
   }
 
-  List<FlSpot> _generatePriceData() {
-    final basePrice = widget.crypto.currentPrice;
-    return List.generate(25, (index) {
-      final variation = (index - 12) * 0.02 + (index % 3 - 1) * 0.01;
-      return FlSpot(index.toDouble(), basePrice * (1 + variation));
-    });
-  }
+  List<BarChartGroupData> _buildVolumeBars() {
+    final ranges =
+        _candles.map((c) => (c.high - c.low).abs()).toList(growable: false);
+    final maxRange =
+        ranges.isEmpty ? 1.0 : ranges.reduce((a, b) => a > b ? a : b);
 
-  List<CandleData> _generateCandlestickData() {
-    final basePrice = widget.crypto.currentPrice;
-    return List.generate(12, (index) {
-      final open = basePrice * (1 + (index - 6) * 0.01);
-      final close = open * (1 + (index % 2 == 0 ? 0.02 : -0.015));
-      final high = [open, close].reduce((a, b) => a > b ? a : b) * 1.01;
-      final low = [open, close].reduce((a, b) => a < b ? a : b) * 0.99;
-      
-      return CandleData(
-        x: index.toDouble(),
-        open: open,
-        high: high,
-        low: low,
-        close: close,
+    return _candles.asMap().entries.map((entry) {
+      final index = entry.key;
+      final candle = entry.value;
+      final range = (candle.high - candle.low).abs();
+      final normalized =
+          maxRange == 0 ? 0.1 : (range / maxRange).clamp(0.1, 1.0);
+      return BarChartGroupData(
+        x: index,
+        barRods: [
+          BarChartRodData(
+            toY: normalized,
+            width: 4,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ],
       );
-    });
-  }
-
-  List<FlSpot> _generateVolumeData() {
-    return List.generate(24, (index) {
-      final baseVolume = widget.crypto.totalVolume ?? 1000000000;
-      final variation = (index % 4) * 0.3 + (index % 7) * 0.2;
-      return FlSpot(index.toDouble(), baseVolume * (0.5 + variation));
-    });
-  }
-
-  List<FlSpot> _generateRSIData() {
-    return List.generate(25, (index) {
-      final baseRSI = 50.0;
-      final variation = (index - 12) * 2 + (index % 5 - 2) * 5;
-      final rsi = (baseRSI + variation).clamp(0.0, 100.0);
-      return FlSpot(index.toDouble(), rsi);
-    });
+    }).toList();
   }
 }
 
 class CandleData {
-  final double x;
+  final DateTime time;
   final double open;
   final double high;
   final double low;
   final double close;
 
   CandleData({
-    required this.x,
+    required this.time,
     required this.open,
     required this.high,
     required this.low,
@@ -480,3 +243,71 @@ class CandleData {
   });
 }
 
+class CandlestickPainter extends CustomPainter {
+  final List<CandleData> candles;
+
+  CandlestickPainter(this.candles);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (candles.isEmpty) return;
+
+    final upColor = const Color(0xFF4CAF50);
+    final downColor = const Color(0xFFFF5252);
+
+    final minPrice =
+        candles.map((c) => c.low).reduce((a, b) => a < b ? a : b);
+    final maxPrice =
+        candles.map((c) => c.high).reduce((a, b) => a > b ? a : b);
+    final priceRange = maxPrice - minPrice == 0 ? 1 : maxPrice - minPrice;
+
+    final candleWidth = size.width / candles.length;
+
+    double priceToY(double price) {
+      final normalized = (price - minPrice) / priceRange;
+      return size.height - normalized * size.height;
+    }
+
+    for (int i = 0; i < candles.length; i++) {
+      final c = candles[i];
+      final isUp = c.close >= c.open;
+      final color = isUp ? upColor : downColor;
+
+      final x = (i + 0.5) * candleWidth;
+
+      final highY = priceToY(c.high);
+      final lowY = priceToY(c.low);
+      final openY = priceToY(c.open);
+      final closeY = priceToY(c.close);
+
+      // Wick
+      final wickPaint = Paint()
+        ..color = color
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(x, highY), Offset(x, lowY), wickPaint);
+
+      // Body
+      final bodyPaint = Paint()
+        ..color = color
+        ..style = PaintingStyle.fill;
+
+      final top = isUp ? closeY : openY;
+      final bottom = isUp ? openY : closeY;
+
+      final rect = Rect.fromLTRB(
+        x - candleWidth * 0.25,
+        top,
+        x + candleWidth * 0.25,
+        bottom == top ? bottom + 1 : bottom,
+      );
+
+      canvas.drawRect(rect, bodyPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CandlestickPainter oldDelegate) {
+    return oldDelegate.candles != candles;
+  }
+}
