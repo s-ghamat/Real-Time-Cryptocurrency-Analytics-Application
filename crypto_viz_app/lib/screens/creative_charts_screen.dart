@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
-
 import '../providers/crypto_provider.dart';
 import '../models/crypto_model.dart';
 
@@ -54,12 +53,11 @@ class CreativeChartsScreen extends StatelessWidget {
                   // Selections
                   final top5 = byCap.take(5).toList();
                   final avgChange = cryptos.fold<double>(
-                              0,
-                              (s, c) =>
-                                  s + c.priceChangePercentage24h) /
-                          cryptos.length;
+                          0,
+                          (s, c) =>
+                              s + c.priceChangePercentage24h) /
+                      cryptos.length;
 
-                  // Market Cap Galaxy selection (4 large + 6 varied mid caps)
                   List<CryptoModel> topForPie;
                   if (byCap.length <= 10) {
                     topForPie = byCap;
@@ -84,7 +82,6 @@ class CreativeChartsScreen extends StatelessWidget {
                       .take(6)
                       .toList();
 
-                  // For the 3 new charts
                   final topForMatrix = byCap.take(6).toList();
                   final topForScatter = byCap.take(12).toList();
                   final topForNetFlow = byCap.take(12).toList();
@@ -143,7 +140,6 @@ class CreativeChartsScreen extends StatelessWidget {
                         _DominanceBucketsChart(cryptos: cryptos),
                         const SizedBox(height: 28),
 
-                        // --- NEW #1: Correlation Matrix ---
                         _title(
                           icon: Icons.grid_on_rounded,
                           label: 'Correlation Matrix',
@@ -153,19 +149,9 @@ class CreativeChartsScreen extends StatelessWidget {
                         const SizedBox(height: 12),
                         _CorrelationMatrix(cryptos: topForMatrix),
                         const SizedBox(height: 28),
-
-                        // --- NEW #2: Risk–Return Scatter ---
-                        _title(
-                          icon: Icons.scatter_plot_rounded,
-                          label: 'Risk–Return Scatter',
-                          subtitle:
-                              'Volatility (synthetic) vs 24h performance; bubble size = market cap',
-                        ),
                         const SizedBox(height: 12),
-                        _RiskReturnScatter(cryptos: topForScatter),
                         const SizedBox(height: 28),
 
-                        // --- NEW #3: Net Flow Bars ---
                         _title(
                           icon: Icons.trending_up_rounded,
                           label: 'Net Flow Bars',
@@ -951,7 +937,7 @@ class _BucketLegendRow extends StatelessWidget {
 }
 
 /// ---------------------------------------------------------------------------
-/// 6) Correlation Matrix (heatmap) – labels fixed to be visible
+/// 6) Correlation Matrix (heatmap)
 /// ---------------------------------------------------------------------------
 
 class _CorrelationMatrix extends StatelessWidget {
@@ -1152,180 +1138,7 @@ class _GradBar extends StatelessWidget {
 }
 
 /// ---------------------------------------------------------------------------
-/// 7) Risk–Return Scatter (custom painter)
-/// ---------------------------------------------------------------------------
-
-class _RiskReturnScatter extends StatelessWidget {
-  final List<CryptoModel> cryptos;
-  const _RiskReturnScatter({required this.cryptos});
-
-  @override
-  Widget build(BuildContext context) {
-    if (cryptos.isEmpty) return const SizedBox.shrink();
-
-    final points = cryptos.map((c) {
-      final s = _normalize(_syntheticSeries(c, count: 24));
-      final vol = _stdDev(s);
-      return _RRPoint(
-        id: c.symbol.toUpperCase(),
-        x: vol,
-        y: c.priceChangePercentage24h,
-        size: math.sqrt(
-          c.marketCap.clamp(1, double.maxFinite),
-        ).toDouble(),
-      );
-    }).toList();
-
-    final minSize = points.map((p) => p.size).reduce(math.min);
-    final maxSize = points.map((p) => p.size).reduce(math.max);
-    final range = (maxSize - minSize) == 0 ? 1 : (maxSize - minSize);
-    for (final p in points) {
-      p.size = 8 + 22 * ((p.size - minSize) / range); // 8..30
-    }
-
-    return Container(
-      height: 240,
-      decoration: BoxDecoration(
-        color: const Color(0xFF151827),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF2A2D47)),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: CustomPaint(
-        painter: _RRScatterPainter(points),
-        child: Container(),
-      ),
-    );
-  }
-}
-
-class _RRPoint {
-  final String id;
-  final double x; // volatility
-  final double y; // return %
-  double size;
-  _RRPoint({
-    required this.id,
-    required this.x,
-    required this.y,
-    required this.size,
-  });
-}
-
-class _RRScatterPainter extends CustomPainter {
-  final List<_RRPoint> pts;
-  _RRScatterPainter(this.pts);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final pad = 36.0;
-    final area = Rect.fromLTWH(
-      pad,
-      8,
-      size.width - pad - 12,
-      size.height - pad - 16,
-    );
-    final axis = Paint()
-      ..color = const Color(0xFF2A2D47)
-      ..strokeWidth = 1.2;
-
-    // Axes
-    canvas.drawLine(
-      Offset(area.left, area.bottom),
-      Offset(area.right, area.bottom),
-      axis,
-    );
-    canvas.drawLine(
-      Offset(area.left, area.top),
-      Offset(area.left, area.bottom),
-      axis,
-    );
-
-    final maxVol = pts.map((p) => p.x).reduce(math.max) * 1.2;
-    const minR = -20.0, maxR = 20.0;
-
-    Offset toPx(_RRPoint p) {
-      final x = area.left +
-          (p.x / (maxVol == 0 ? 1 : maxVol)).clamp(0.0, 1.0) * area.width;
-      final y = area.bottom -
-          ((p.y - minR) / (maxR - minR)).clamp(0.0, 1.0) * area.height;
-      return Offset(x, y);
-    }
-
-    // Grid lines
-    final grid = Paint()
-      ..color = const Color(0xFF2A2D47)
-      ..strokeWidth = 1;
-    for (final r in [-10.0, 0.0, 10.0]) {
-      final y =
-          area.bottom - ((r - minR) / (maxR - minR)) * area.height;
-      canvas.drawLine(
-        Offset(area.left, y),
-        Offset(area.right, y),
-        grid,
-      );
-      _label(
-        canvas,
-        '${r.toStringAsFixed(0)}%',
-        Offset(area.left - 28, y - 6),
-      );
-    }
-    _label(
-      canvas,
-      'Volatility →',
-      Offset(area.right - 70, area.bottom + 6),
-    );
-
-    final up = const Color(0xFF4CAF50);
-    final down = const Color(0xFFFF5252);
-
-    // Points
-    for (final p in pts) {
-      final o = toPx(p);
-      final paint = Paint()
-        ..color = (p.y >= 0 ? up : down).withOpacity(0.85)
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(o, p.size, paint);
-
-      _label(
-        canvas,
-        p.id,
-        Offset(o.dx - 10, o.dy - p.size - 12),
-        color: Colors.white,
-        size: 10,
-        bold: true,
-      );
-    }
-  }
-
-  void _label(
-    Canvas canvas,
-    String text,
-    Offset at, {
-    Color color = const Color(0xFF8B93A7),
-    double size = 10,
-    bool bold = false,
-  }) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color,
-          fontSize: size,
-          fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, at);
-  }
-
-  @override
-  bool shouldRepaint(covariant _RRScatterPainter old) => false;
-}
-
-/// ---------------------------------------------------------------------------
-/// 8) Net Flow Bars (positive/negative)
+/// 7) Net Flow Bars (positive/negative)
 /// ---------------------------------------------------------------------------
 
 class _NetFlowBars extends StatelessWidget {
