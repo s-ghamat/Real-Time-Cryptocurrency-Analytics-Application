@@ -101,8 +101,11 @@ class _AdvancedAnalyticsChartsState extends State<AdvancedAnalyticsCharts> {
       final high = math.max(open, close) * (1 + rnd.nextDouble() * 0.01);
       final low = math.min(open, close) * (1 - rnd.nextDouble() * 0.01);
 
-      final time = now.subtract(Duration(
-          minutes: (totalMinutes - i * stepMinutes).round()));
+      final time = now.subtract(
+        Duration(
+          minutes: (totalMinutes - i * stepMinutes).round(),
+        ),
+      );
 
       candles.add(
         CandleData(
@@ -119,12 +122,17 @@ class _AdvancedAnalyticsChartsState extends State<AdvancedAnalyticsCharts> {
 
     _candles = candles;
 
-    // notifier le changement de prix réel sur la période simulée
+    // ✅ notifier le changement de prix réel sur la période simulée
+    // mais UNIQUEMENT après la fin du build courant
     if (_candles.isNotEmpty && widget.onPriceChangeCalculated != null) {
       final first = _candles.first.open;
       final last = _candles.last.close;
       final percent = ((last - first) / first) * 100;
-      widget.onPriceChangeCalculated!(percent);
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        widget.onPriceChangeCalculated!(percent);
+      });
     }
 
     setState(() {});

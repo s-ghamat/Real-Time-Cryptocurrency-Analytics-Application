@@ -6,6 +6,7 @@ import '../widgets/dark_news_card.dart';
 import '../widgets/market_overview_charts.dart';
 import '../widgets/enhanced_crypto_card.dart';
 import '../screens/analytics_screen.dart';
+import '../screens/creative_charts_screen.dart';
 import '../utils/formatters.dart';
 
 class DarkHomeScreen extends StatefulWidget {
@@ -176,14 +177,16 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 30),
-                
+
                 // Balance principale
                 Consumer<CryptoProvider>(
                   builder: (context, provider, child) {
-                    final totalValue = provider.cryptos.isNotEmpty 
-                        ? provider.cryptos.take(5).fold(0.0, (sum, crypto) => sum + crypto.currentPrice)
+                    final totalValue = provider.cryptos.isNotEmpty
+                        ? provider.cryptos
+                            .take(5)
+                            .fold(0.0, (sum, crypto) => sum + crypto.currentPrice)
                         : 69420.0;
-                    
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -199,7 +202,8 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                         Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF4CAF50).withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(8),
@@ -228,9 +232,9 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                     );
                   },
                 ),
-                
+
                 const SizedBox(height: 30),
-                
+
                 // Graphique principal
                 Container(
                   height: 200,
@@ -245,24 +249,34 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                     size: const Size(double.infinity, 160),
                   ),
                 ),
-                
+
                 const SizedBox(height: 30),
-                
+
                 // Statistiques
                 Row(
                   children: [
                     Expanded(
-                      child: _buildStatCard('INCOME', '+262,144', const Color(0xFF4CAF50), true),
+                      child: _buildStatCard(
+                        'INCOME',
+                        '+262,144',
+                        const Color(0xFF4CAF50),
+                        true,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildStatCard('OUTCOME', '65,536', const Color(0xFFFF5252), false),
+                      child: _buildStatCard(
+                        'OUTCOME',
+                        '65,536',
+                        const Color(0xFFFF5252),
+                        false,
+                      ),
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 20),
-                
+
                 const Text(
                   'My Assets',
                   style: TextStyle(
@@ -275,7 +289,7 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
               ],
             ),
           ),
-          
+
           // Liste des cryptos
           Consumer<CryptoProvider>(
             builder: (context, provider, child) {
@@ -284,7 +298,8 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                   child: Padding(
                     padding: EdgeInsets.all(40),
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
                     ),
                   ),
                 );
@@ -326,11 +341,13 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF4A90E2),
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
                           ),
                           child: const Text('Réessayer'),
                         ),
-                        if (provider.error.contains('429') || provider.error.contains('Limite'))
+                        if (provider.error.contains('429') ||
+                            provider.error.contains('Limite'))
                           const Padding(
                             padding: EdgeInsets.only(top: 16),
                             child: Text(
@@ -348,8 +365,8 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                 );
               }
 
-              final cryptosToShow = provider.filteredCryptos.isEmpty 
-                  ? provider.cryptos 
+              final cryptosToShow = provider.filteredCryptos.isEmpty
+                  ? provider.cryptos
                   : provider.filteredCryptos;
 
               return Column(
@@ -359,7 +376,7 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
               );
             },
           ),
-          
+
           const SizedBox(height: 100),
         ],
       ),
@@ -382,7 +399,7 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
               ),
             ),
           ),
-          
+
           Consumer<CryptoProvider>(
             builder: (context, provider, child) {
               if (provider.isLoadingNews && provider.news.isEmpty) {
@@ -390,7 +407,8 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                   child: Padding(
                     padding: EdgeInsets.all(40),
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
                     ),
                   ),
                 );
@@ -439,7 +457,7 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
               );
             },
           ),
-          
+
           const SizedBox(height: 100),
         ],
       ),
@@ -462,7 +480,7 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
               ),
             ),
           ),
-          
+
           // Bouton pour accéder aux analytics avancés
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -480,16 +498,17 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4A90E2),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Graphiques de vue d'ensemble du marché
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -498,39 +517,43 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                 if (provider.cryptos.isEmpty) {
                   return const Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Color(0xFF4A90E2)),
                     ),
                   );
                 }
-                
+
                 return MarketOverviewCharts(cryptos: provider.cryptos);
               },
             ),
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Métriques de marché rapides
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Consumer<CryptoProvider>(
               builder: (context, provider, child) {
                 if (provider.cryptos.isEmpty) return const SizedBox();
-                
+
                 final totalMarketCap = provider.cryptos.fold<double>(
-                  0, (sum, crypto) => sum + crypto.marketCap
-                );
+                    0, (sum, crypto) => sum + crypto.marketCap);
                 final avgChange = provider.cryptos.fold<double>(
-                  0, (sum, crypto) => sum + crypto.priceChangePercentage24h
-                ) / provider.cryptos.length;
-                
+                        0,
+                        (sum, crypto) =>
+                            sum + crypto.priceChangePercentage24h) /
+                    provider.cryptos.length;
+
                 return Row(
                   children: [
                     Expanded(
                       child: _buildQuickStatCard(
                         'Total Market Cap',
                         '\$${(totalMarketCap / 1000000000000).toStringAsFixed(2)}T',
-                        avgChange >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
+                        avgChange >= 0
+                            ? const Color(0xFF4CAF50)
+                            : const Color(0xFFFF5252),
                         avgChange >= 0,
                       ),
                     ),
@@ -539,7 +562,9 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                       child: _buildQuickStatCard(
                         'Avg 24h Change',
                         '${avgChange >= 0 ? '+' : ''}${avgChange.toStringAsFixed(2)}%',
-                        avgChange >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
+                        avgChange >= 0
+                            ? const Color(0xFF4CAF50)
+                            : const Color(0xFFFF5252),
                         avgChange >= 0,
                       ),
                     ),
@@ -548,7 +573,7 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
               },
             ),
           ),
-          
+
           const SizedBox(height: 100),
         ],
       ),
@@ -571,7 +596,7 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
               ),
             ),
             const SizedBox(height: 30),
-            
+
             // Bouton Analytics
             _buildMenuCard(
               icon: Icons.analytics,
@@ -587,9 +612,27 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
                 );
               },
             ),
-            
+
             const SizedBox(height: 16),
-            
+
+            // Nouveau bouton : Creative Charts
+            _buildMenuCard(
+              icon: Icons.auto_graph_rounded,
+              title: 'Creative Crypto Charts',
+              subtitle: 'Graphiques originaux et visuels',
+              color: const Color(0xFF4A90E2),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CreativeChartsScreen(),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 16),
+
             // Autres options
             _buildMenuCard(
               icon: Icons.settings,
@@ -677,7 +720,8 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
     );
   }
 
-  Widget _buildStatCard(String title, String value, Color color, bool isPositive) {
+  Widget _buildStatCard(
+      String title, String value, Color color, bool isPositive) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -720,7 +764,8 @@ class _DarkHomeScreenState extends State<DarkHomeScreen> {
     );
   }
 
-  Widget _buildQuickStatCard(String title, String value, Color color, bool isPositive) {
+  Widget _buildQuickStatCard(
+      String title, String value, Color color, bool isPositive) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -774,7 +819,7 @@ class MainChartPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final path = Path();
-    
+
     // Génère une courbe ascendante
     final points = [
       Offset(0, size.height * 0.8),
@@ -817,11 +862,11 @@ class MainChartPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(points.last, 4, pointPaint);
-    
+
     final whitePaint = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.fill;
-    
+
     canvas.drawCircle(points.last, 2, whitePaint);
   }
 
