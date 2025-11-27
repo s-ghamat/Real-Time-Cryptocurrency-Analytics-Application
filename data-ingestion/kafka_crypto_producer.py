@@ -46,43 +46,52 @@ class CryptoKafkaProducer:
         self.crypto_symbols = ['bitcoin', 'ethereum', 'solana', 'cardano', 'polkadot']
         
     def collect_crypto_prices(self):
-        """Collecte les prix des cryptomonnaies"""
+        """Collecte les prix des cryptomonnaies depuis Binance (gratuit, sans limite)"""
         try:
-            # CoinGecko API
-            url = f"{self.apis['coingecko']}/simple/price"
-            params = {
-                'ids': ','.join(self.crypto_symbols),
-                'vs_currencies': 'usd,eur',
-                'include_market_cap': 'true',
-                'include_24hr_vol': 'true',
-                'include_24hr_change': 'true'
+            # Map des symboles vers les paires Binance
+            binance_pairs = {
+                'bitcoin': 'BTCUSDT',
+                'ethereum': 'ETHUSDT',
+                'solana': 'SOLUSDT',
+                'cardano': 'ADAUSDT',
+                'polkadot': 'DOTUSDT'
             }
-            
-            response = requests.get(url, params=params, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                timestamp = datetime.now().isoformat()
-                
-                for crypto, info in data.items():
-                    price_data = {
-                        'timestamp': timestamp,
-                        'symbol': crypto,
-                        'price_usd': info.get('usd', 0),
-                        'price_eur': info.get('eur', 0),
-                        'market_cap_usd': info.get('usd_market_cap', 0),
-                        'volume_24h_usd': info.get('usd_24h_vol', 0),
-                        'change_24h': info.get('usd_24h_change', 0),
-                        'source': 'coingecko'
-                    }
-                    
-                    # Envoie vers Kafka
-                    self.send_to_kafka(self.topics['prices'], crypto, price_data)
-                    
-                logger.info(f"Prix collectés pour {len(data)} cryptos")
-                return True
-                
+
+            timestamp = datetime.now().isoformat()
+            collected = 0
+
+            for crypto_name, pair in binance_pairs.items():
+                try:
+                    # Binance price ticker
+                    price_url = f"{self.apis['binance']}/ticker/24hr?symbol={pair}"
+                    response = requests.get(price_url, timeout=5)
+
+                    if response.status_code == 200:
+                        data = response.json()
+
+                        price_data = {
+                            'timestamp': timestamp,
+                            'symbol': crypto_name,
+                            'price_usd': float(data.get('lastPrice', 0)),
+                            'price_eur': float(data.get('lastPrice', 0)) * 0.92,  # Approximation EUR
+                            'market_cap_usd': 0,  # Binance ne fournit pas market cap
+                            'volume_24h_usd': float(data.get('volume', 0)) * float(data.get('lastPrice', 0)),
+                            'change_24h': float(data.get('priceChangePercent', 0)),
+                            'source': 'binance'
+                        }
+
+                        # Envoie vers Kafka
+                        self.send_to_kafka(self.topics['prices'], crypto_name, price_data)
+                        collected += 1
+
+                except Exception as e:
+                    logger.warning(f"Erreur pour {crypto_name}: {e}")
+
+            logger.info(f"Prix collectés pour {collected} cryptos depuis Binance")
+            return collected > 0
+
         except Exception as e:
-            logger.error(f"Erreur collecte prix: {e}")
+            logger.error(f"Erreur collecte prix Binance: {e}")
             return False
     
     def collect_crypto_news(self):
