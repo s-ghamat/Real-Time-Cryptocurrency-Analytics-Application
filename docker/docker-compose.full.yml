@@ -32,43 +32,30 @@ services:
     networks:
       - crypto-network
 
-  # Spark Master
-  spark-master:
-    image: bitnami/spark:3.4
-    container_name: spark-master
-    environment:
-      - SPARK_MODE=master
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-    ports:
-      - "8080:8080"
-      - "7077:7077"
-    volumes:
-      - ./spark:/opt/bitnami/spark/work
-    networks:
-      - crypto-network
+  # Spark Master (désactivé temporairement - images Bitnami non disponibles)
+  # Le consumer Spark tourne en local via spark_analytics_builder.py
+  # spark-master:
+  #   image: bitnami/spark:latest
+  #   container_name: spark-master
+  #   environment:
+  #     - SPARK_MODE=master
+  #   ports:
+  #     - "8080:8080"
+  #     - "7077:7077"
+  #   networks:
+  #     - crypto-network
 
-  # Spark Worker
-  spark-worker:
-    image: bitnami/spark:3.4
-    container_name: spark-worker
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=2G
-      - SPARK_WORKER_CORES=2
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
-    depends_on:
-      - spark-master
-    volumes:
-      - ./spark:/opt/bitnami/spark/work
-    networks:
-      - crypto-network
+  # Spark Worker (désactivé temporairement)
+  # spark-worker:
+  #   image: bitnami/spark:latest
+  #   container_name: spark-worker
+  #   environment:
+  #     - SPARK_MODE=worker
+  #     - SPARK_MASTER_URL=spark://spark-master:7077
+  #   depends_on:
+  #     - spark-master
+  #   networks:
+  #     - crypto-network
 
   # Service de collecte de données
   data-collector:
@@ -86,6 +73,29 @@ services:
       - crypto-network
     restart: unless-stopped
 
+  # Consumer Analytics (Spark-like processing)
+  analytics-consumer:
+    build:
+      context: ../
+      dockerfile: analytics/Dockerfile
+    container_name: analytics-consumer
+    depends_on:
+      - kafka
+      - postgres
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+      - POSTGRES_DB=crypto
+    volumes:
+      - ../analytics:/app/analytics
+      - analytics-data:/app/analytics/data
+    networks:
+      - crypto-network
+    restart: unless-stopped
+
   # API Gateway pour Flutter
   api-gateway:
     build:
@@ -94,12 +104,10 @@ services:
     container_name: api-gateway
     depends_on:
       - kafka
-      - spark-master
     ports:
       - "3000:3000"
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - SPARK_MASTER_URL=spark://spark-master:7077
     volumes:
       - ../api-gateway:/app
     networks:
@@ -119,6 +127,55 @@ services:
     networks:
       - crypto-network
 
+  # PostgreSQL pour Grafana
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: crypto
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
+      POSTGRES_INITDB_ARGS: "--locale=en_US.UTF-8"
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../storage/postgres_init.sh:/docker-entrypoint-initdb.d/00-init-user.sh:ro
+      - ../storage/postgres_setup.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - crypto-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d crypto"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Grafana pour visualisation web ergonomique
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=marcusolsson-json-datasource
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ../grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - crypto-network
+    restart: unless-stopped
+
 networks:
   crypto-network:
     driver: bridge
@@ -126,3 +183,6 @@ networks:
 volumes:
   kafka-data:
   spark-data:
+  grafana-data:
+  postgres-data:
+  analytics-data:

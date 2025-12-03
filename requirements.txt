@@ -1,7 +1,6 @@
 # Core dependencies
 pandas>=2.0.0
-# duckdb - installation manuelle si compilation necessaire
-# duckdb==0.8.0
+duckdb>=0.8.0
 # pyspark>=3.4.0  # Optionnel, necessite Java
 
 # API and web frameworks
@@ -11,7 +10,8 @@ fastapi
 uvicorn
 
 # Data streaming
-kafka-python==2.0.2
+kafka-python>=2.2.0
+six
 websocket-client
 
 # Data collection
@@ -25,3 +25,6 @@ dash
 
 # Sentiment analysis
 textblob
+
+# PostgreSQL pour Grafana
+psycopg2-binary>=2.9.0

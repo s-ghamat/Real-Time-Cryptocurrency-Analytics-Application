@@ -3,6 +3,7 @@
 ## 🏗️ Architecture Générale du Système
 
 ### Vue d'Ensemble
+
 Le projet T-DAT-901 implémente une architecture de streaming de données en temps réel pour l'analyse des cryptomonnaies, combinant plusieurs technologies modernes pour créer un écosystème complet d'analytics.
 
 ```
@@ -32,6 +33,7 @@ Le projet T-DAT-901 implémente une architecture de streaming de données en tem
 - **Fréquence** : Collecte toutes les 30 secondes
 
 #### 🔄 Producteurs Kafka
+
 **Fichier** : `data-ingestion/kafka_crypto_producer.py`
 
 **API Binance** : Collecte des données depuis l'API publique Binance
@@ -72,11 +74,13 @@ BINANCE_PAIRS = {
 ### 2. **Streaming et Messagerie (Apache Kafka)**
 
 #### 📨 Topics Kafka
+
 - **`crypto-prices`** : Prix et métriques des cryptomonnaies
 - **`crypto-news`** : Actualités et sentiment analysis
 - **`crypto-alerts`** : Alertes techniques générées
 
 #### ⚙️ Configuration
+
 ```yaml
 # docker-compose.kafka.yml
 - Partitions: 3 par topic
@@ -88,35 +92,42 @@ BINANCE_PAIRS = {
 ### 3. **Analytics en Temps Réel (Spark-like Processing)**
 
 #### 🧮 Processeur Analytics
+
 **Fichier** : `analytics/spark_analytics_builder.py`
 
 ##### Indicateurs Techniques Calculés :
 
 **📈 Simple Moving Average (SMA)**
+
 ```python
 def calculate_sma(prices, period=20):
     return sum(prices[-period:]) / period
 ```
+
 - **Usage** : Tendance à moyen terme
 - **Période** : 20 périodes par défaut
 - **Interprétation** : Prix > SMA = tendance haussière
 
 **📊 Exponential Moving Average (EMA)**
+
 ```python
 def calculate_ema(prices, period=12):
     multiplier = 2 / (period + 1)
     return (price * multiplier) + (previous_ema * (1 - multiplier))
 ```
+
 - **Usage** : Réactivité aux changements récents
 - **Période** : 12 périodes par défaut
 - **Avantage** : Plus sensible que SMA
 
 **⚡ MACD (Moving Average Convergence Divergence)**
+
 ```python
 macd_line = ema_12 - ema_26
 signal_line = ema(macd_line, 9)
 histogram = macd_line - signal_line
 ```
+
 - **Composants** :
   - **MACD Line** : EMA(12) - EMA(26)
   - **Signal Line** : EMA(9) du MACD
@@ -126,6 +137,7 @@ histogram = macd_line - signal_line
   - Croisement MACD < Signal = Vente
 
 **🎯 RSI (Relative Strength Index)**
+
 ```python
 def calculate_rsi(prices, period=14):
     gains = [max(0, prices[i] - prices[i-1]) for i in range(1, len(prices))]
@@ -135,12 +147,14 @@ def calculate_rsi(prices, period=14):
     rs = avg_gain / avg_loss if avg_loss != 0 else 0
     return 100 - (100 / (1 + rs))
 ```
+
 - **Plage** : 0-100
 - **Surachat** : RSI > 70
 - **Survente** : RSI < 30
 - **Neutre** : 30 < RSI < 70
 
 **📏 Bollinger Bands**
+
 ```python
 def calculate_bollinger_bands(prices, period=20, std_dev=2):
     sma = calculate_sma(prices, period)
@@ -149,12 +163,15 @@ def calculate_bollinger_bands(prices, period=20, std_dev=2):
     lower_band = sma - (std * std_dev)
     return upper_band, sma, lower_band
 ```
+
 - **Bande Supérieure** : SMA + (2 × écart-type)
 - **Bande Inférieure** : SMA - (2 × écart-type)
 - **Usage** : Détection de volatilité et niveaux de support/résistance
 
 #### 🤖 Sentiment Analysis
+
 **Algorithme** : TextBlob pour l'analyse des actualités
+
 ```python
 def analyze_sentiment(text):
     blob = TextBlob(text)
@@ -170,6 +187,7 @@ def analyze_sentiment(text):
 ### 4. **Stockage de Données (DuckDB)**
 
 #### 🗄️ Schéma de Base de Données
+
 ```sql
 -- Table des prix crypto
 CREATE TABLE crypto_prices (
@@ -212,6 +230,7 @@ CREATE TABLE crypto_news (
 ### 5. **API Gateway (Flask)**
 
 #### 🌐 Endpoints REST
+
 **Fichier** : `api-gateway/app.py`
 
 ```python
@@ -226,6 +245,7 @@ POST /api/alerts               # Créer une alerte
 ```
 
 **Exemple de réponse** :
+
 ```json
 {
     "symbol": "BTC",
@@ -250,9 +270,11 @@ POST /api/alerts               # Créer une alerte
 ### 1. **Dashboard Streamlit (Web)**
 
 #### 🖥️ Composants du Dashboard
+
 **Fichier** : `dashboard/streamlit_dashboard.py`
 
 ##### **Graphique Principal des Prix**
+
 - **Type** : Line Chart interactif (Plotly)
 - **Données** : Prix en temps réel avec moyennes mobiles
 - **Mise à jour** : Toutes les 30 secondes
@@ -262,6 +284,7 @@ POST /api/alerts               # Créer une alerte
   - Bollinger Bands en gris
 
 ##### **Graphique RSI**
+
 - **Plage** : 0-100
 - **Zones critiques** :
   - Rouge (70-100) : Surachat
@@ -269,6 +292,7 @@ POST /api/alerts               # Créer une alerte
   - Gris (30-70) : Zone neutre
 
 ##### **Graphique de Volume**
+
 - **Type** : Bar Chart
 - **Couleurs** :
   - Vert : Volume en hausse
@@ -276,6 +300,7 @@ POST /api/alerts               # Créer une alerte
 - **Moyenne** : Ligne de volume moyen sur 20 périodes
 
 ##### **Métriques Système**
+
 ```python
 # Métriques affichées
 - Messages Kafka traités/seconde
@@ -287,7 +312,9 @@ POST /api/alerts               # Créer une alerte
 ### 2. **Application Mobile Flutter**
 
 #### 📱 Architecture Flutter
+
 **Fichiers principaux** :
+
 - `lib/main.dart` : Point d'entrée
 - `lib/screens/dark_home_screen.dart` : Écran principal
 - `lib/screens/analytics_screen.dart` : Analytics avancés
@@ -296,6 +323,7 @@ POST /api/alerts               # Créer une alerte
 #### 🎨 Composants Graphiques
 
 ##### **Cartes Crypto Enrichies**
+
 ```dart
 // Structure des données affichées
 class CryptoCard {
@@ -312,6 +340,7 @@ class CryptoCard {
 ##### **Graphiques Avancés (Analytics Screen)**
 
 **📈 Graphique de Prix (Line Chart)**
+
 - **Bibliothèque** : fl_chart
 - **Données** : 24 points de données simulées
 - **Fonctionnalités** :
@@ -336,12 +365,14 @@ LineChartData(
 ```
 
 **📊 Graphique de Volume (Bar Chart)**
+
 - **Type** : Barres verticales
 - **Données** : Volume simulé sur 24h
 - **Couleurs** : Gradient bleu
 - **Formatage** : Millions (M) et milliards (B)
 
 **⚡ Graphique RSI**
+
 - **Ligne RSI** : Courbe orange
 - **Zones critiques** :
   - Ligne rouge à 70 (surachat)
@@ -351,6 +382,7 @@ LineChartData(
 ##### **Market Overview Charts**
 
 **🥧 Market Cap (Pie Chart)**
+
 ```dart
 // Répartition des 8 principales cryptos
 PieChartData(
@@ -366,6 +398,7 @@ PieChartData(
 ```
 
 **📈 Performance 24h (Bar Chart)**
+
 - **Données** : Variation % des 10 principales cryptos
 - **Couleurs** :
   - Vert : Performance positive
@@ -373,6 +406,7 @@ PieChartData(
 - **Ligne de référence** : 0% en gris
 
 **👑 Dominance Chart**
+
 - **Type** : Donut chart avec légende
 - **Calcul** : `(marketCap_crypto / totalMarketCap) * 100`
 - **Affichage** : Top 5 cryptos avec pourcentages
@@ -384,6 +418,7 @@ PieChartData(
 ### 1. **Algorithmes d'Analyse Technique**
 
 #### 📊 Détection de Tendances
+
 ```python
 def detect_trend(prices, sma_short=10, sma_long=20):
     """
@@ -404,6 +439,7 @@ def detect_trend(prices, sma_short=10, sma_long=20):
 ```
 
 #### 🚨 Système d'Alertes
+
 ```python
 def generate_alerts(symbol, indicators):
     """
@@ -439,6 +475,7 @@ def generate_alerts(symbol, indicators):
 ### 2. **Métriques de Performance**
 
 #### ⚡ Latence du Système
+
 - **Collecte → Kafka** : < 100ms
 - **Kafka → Analytics** : < 200ms
 - **Analytics → Storage** : < 150ms
@@ -446,6 +483,7 @@ def generate_alerts(symbol, indicators):
 - **Total End-to-End** : < 500ms
 
 #### 📈 Throughput
+
 - **Messages Kafka/sec** : 1000+
 - **Calculs techniques/sec** : 500+
 - **Requêtes API/sec** : 100+
@@ -458,7 +496,9 @@ def generate_alerts(symbol, indicators):
 ### 1. **Graphiques de Prix**
 
 #### 📈 Line Charts
+
 **Signification des éléments** :
+
 - **Ligne principale** : Prix actuel de la crypto
 - **Zone de remplissage** : Visualisation de la tendance
 - **Couleur** :
@@ -467,12 +507,15 @@ def generate_alerts(symbol, indicators):
   - Gris : Tendance neutre
 
 **Interprétation** :
+
 - **Pente ascendante** : Momentum haussier
 - **Pente descendante** : Momentum baissier
 - **Ligne horizontale** : Consolidation/indécision
 
 #### 📊 Candlestick Charts (Simulés)
+
 **Éléments d'une bougie** :
+
 - **Corps** : Différence entre ouverture et clôture
 - **Mèches** : Plus haut et plus bas de la période
 - **Couleur** :
@@ -482,17 +525,22 @@ def generate_alerts(symbol, indicators):
 ### 2. **Indicateurs Techniques**
 
 #### 🎯 RSI (Relative Strength Index)
+
 **Zones d'interprétation** :
+
 - **0-30** : Zone de survente (opportunité d'achat potentielle)
 - **30-70** : Zone neutre (pas de signal clair)
 - **70-100** : Zone de surachat (opportunité de vente potentielle)
 
 **Divergences** :
+
 - **Divergence haussière** : Prix baisse, RSI monte → Retournement possible
 - **Divergence baissière** : Prix monte, RSI baisse → Correction possible
 
 #### ⚡ MACD
+
 **Signaux principaux** :
+
 - **Croisement haussier** : MACD > Signal → Signal d'achat
 - **Croisement baissier** : MACD < Signal → Signal de vente
 - **Histogramme** :
@@ -500,7 +548,9 @@ def generate_alerts(symbol, indicators):
   - Barres décroissantes : Momentum ralentit
 
 #### 📏 Bollinger Bands
+
 **Utilisation** :
+
 - **Prix touche bande supérieure** : Possible surachat
 - **Prix touche bande inférieure** : Possible survente
 - **Bandes resserrées** : Faible volatilité, breakout imminent
@@ -509,7 +559,9 @@ def generate_alerts(symbol, indicators):
 ### 3. **Graphiques de Volume**
 
 #### 📊 Volume Bars
+
 **Interprétation** :
+
 - **Volume élevé + prix en hausse** : Confirmation de la tendance haussière
 - **Volume élevé + prix en baisse** : Confirmation de la tendance baissière
 - **Volume faible** : Manque de conviction, possible retournement
@@ -518,13 +570,17 @@ def generate_alerts(symbol, indicators):
 ### 4. **Market Overview**
 
 #### 🥧 Market Cap Distribution
+
 **Analyse** :
+
 - **Dominance Bitcoin élevée** : Marché conservateur
 - **Dominance Altcoins élevée** : Marché spéculatif
 - **Répartition équilibrée** : Marché mature
 
 #### 📈 Performance Comparison
+
 **Lecture** :
+
 - **Barres vertes dominantes** : Marché haussier général
 - **Barres rouges dominantes** : Marché baissier général
 - **Mixte** : Sélectivité du marché
@@ -536,6 +592,7 @@ def generate_alerts(symbol, indicators):
 ### 1. **Architecture de Déploiement**
 
 #### 🐳 Docker Compose
+
 ```yaml
 # Services déployés
 - Kafka + Zookeeper
@@ -546,6 +603,7 @@ def generate_alerts(symbol, indicators):
 ```
 
 #### 📊 Monitoring
+
 - **Métriques Kafka** : Lag des consumers, throughput
 - **Métriques API** : Temps de réponse, taux d'erreur
 - **Métriques Analytics** : Temps de calcul, précision
@@ -554,12 +612,14 @@ def generate_alerts(symbol, indicators):
 ### 2. **Scalabilité**
 
 #### 📈 Horizontal Scaling
+
 - **Kafka** : Augmentation du nombre de partitions
 - **Analytics** : Déploiement de multiples workers
 - **API Gateway** : Load balancing avec nginx
 - **Storage** : Sharding DuckDB ou migration PostgreSQL
 
 #### ⚡ Optimisations
+
 - **Caching** : Redis pour les données fréquemment accédées
 - **Compression** : Gzip pour les messages Kafka
 - **Indexation** : Index sur timestamp et symbol dans DuckDB
@@ -570,6 +630,7 @@ def generate_alerts(symbol, indicators):
 ## 📚 Technologies Utilisées
 
 ### Backend
+
 - **Apache Kafka** : Streaming de données
 - **Python** : Logique métier et analytics
 - **Flask** : API REST
@@ -577,12 +638,14 @@ def generate_alerts(symbol, indicators):
 - **Docker** : Containerisation
 
 ### Frontend
+
 - **Streamlit** : Dashboard web interactif
 - **Flutter** : Application mobile native
 - **Plotly** : Graphiques web interactifs
 - **fl_chart** : Graphiques Flutter
 
 ### Analytics
+
 - **Pandas** : Manipulation de données
 - **NumPy** : Calculs numériques
 - **TextBlob** : Sentiment analysis
@@ -593,21 +656,25 @@ def generate_alerts(symbol, indicators):
 ## 🎯 Cas d'Usage et Scénarios
 
 ### 1. **Trading Algorithmique**
+
 - Utilisation des signaux MACD pour l'entrée/sortie
 - Filtrage par RSI pour éviter les faux signaux
 - Confirmation par volume pour valider les mouvements
 
 ### 2. **Analyse de Sentiment**
+
 - Corrélation entre actualités et mouvements de prix
 - Détection d'événements majeurs via pics de sentiment
 - Anticipation des retournements de marché
 
 ### 3. **Risk Management**
+
 - Alertes automatiques sur niveaux critiques
 - Monitoring de la volatilité via Bollinger Bands
 - Diversification basée sur la corrélation des actifs
 
 ### 4. **Recherche et Backtesting**
+
 - Historique complet pour tests de stratégies
 - Métriques de performance détaillées
 - Analyse de la précision des indicateurs
@@ -617,6 +684,7 @@ def generate_alerts(symbol, indicators):
 ## 🔧 Configuration et Maintenance
 
 ### Variables d'Environnement
+
 ```bash
 # Kafka Configuration
 KAFKA_BOOTSTRAP_SERVERS=localhost:9092
@@ -645,6 +713,7 @@ MACD_SIGNAL=9
 ```
 
 ### Maintenance Régulière
+
 - **Nettoyage des logs** : Rotation automatique
 - **Backup DuckDB** : Sauvegarde quotidienne
 - **Monitoring des performances** : Alertes sur dégradation
@@ -655,6 +724,7 @@ MACD_SIGNAL=9
 ## 📈 Évolutions Futures
 
 ### Fonctionnalités Prévues
+
 - **Machine Learning** : Prédiction de prix avec LSTM
 - **Alertes personnalisées** : Configuration utilisateur
 - **API WebSocket** : Données temps réel pour Flutter
@@ -663,103 +733,12 @@ MACD_SIGNAL=9
 - **Portfolio tracking** : Suivi de portefeuille personnel
 
 ### Améliorations Techniques
+
 - **Migration Spark** : Remplacement du processeur custom
 - **Kubernetes** : Orchestration cloud-native
 - **Monitoring avancé** : Prometheus + Grafana
 - **CI/CD** : Pipeline automatisé avec tests
 - **Documentation API** : Swagger/OpenAPI
-
----
-
-## 🔄 Historique des Modifications et Corrections
-
-### Version Actuelle (Janvier 2025)
-
-#### ✅ Corrections Majeures
-
-**1. Migration CoinGecko → Binance API**
-- **Problème** : CoinGecko imposait des limites de taux strictes (HTTP 429) sans API key
-- **Solution** : Passage à l'API publique Binance qui offre 1200 req/min gratuitement
-- **Impact** : Collecte de données 100% fiable sans interruption
-- **Fichier modifié** : [data-ingestion/kafka_crypto_producer.py](data-ingestion/kafka_crypto_producer.py)
-
-**2. Correction de l'écran Analytics Flutter**
-- **Problème** : Paramètre `onPriceChangeCalculated` inexistant dans le widget `AdvancedAnalyticsCharts`
-- **Solution** : Suppression du paramètre invalide dans l'instantiation du widget
-- **Impact** : Compilation Flutter réussie sans erreurs
-- **Fichier modifié** : [crypto_viz_app/lib/screens/analytics_screen.dart](crypto_viz_app/lib/screens/analytics_screen.dart)
-
-**3. Ajout des fichiers manquants**
-- **Problème** : Fichiers `api_gateway_service.dart` et `advanced_analytics_charts.dart` absents du repository
-- **Solution** : Création complète des services et widgets manquants
-- **Impact** : Application Flutter entièrement fonctionnelle
-- **Fichiers créés** :
-  - [crypto_viz_app/lib/services/api_gateway_service.dart](crypto_viz_app/lib/services/api_gateway_service.dart)
-  - [crypto_viz_app/lib/widgets/advanced_analytics_charts.dart](crypto_viz_app/lib/widgets/advanced_analytics_charts.dart)
-
-**4. Gestion des fichiers ignorés par Git**
-- **Problème** : Le répertoire `crypto_viz_app/lib/` était ignoré par `.gitignore`
-- **Solution** : Force-add de tous les fichiers Flutter avec `git add -f`
-- **Impact** : Collègues peuvent maintenant cloner et utiliser l'application
-- **Commit** : Tous les 28 fichiers Dart ajoutés au repository
-
-#### 🚀 Améliorations du Système
-
-**Collecte de Données en Temps Réel**
-- 5 cryptomonnaies surveillées : Bitcoin, Ethereum, Solana, Cardano, Polkadot
-- Données actualisées toutes les 30 secondes
-- Source fiable (Binance) sans limite de taux
-
-**API Gateway Flask**
-- Port d'écoute : `3000`
-- Endpoint principal : `http://localhost:3000/api/crypto/prices`
-- Health check : `http://localhost:3000/health`
-- Support CORS pour Flutter
-
-**Application Flutter**
-- Interface avec indicateur 🔴 LIVE pour les données temps réel
-- Graphiques avancés (prix, volume, RSI)
-- Market overview avec pie charts et bar charts
-- Gestion d'erreur robuste avec fallback
-
-#### 🐛 Bugs Connus et Limitations
-
-**1. NewsModel**
-- Les actualités crypto ne sont pas encore pleinement implémentées dans le producer
-- L'endpoint `/api/crypto/news` retourne actuellement des données vides
-- **Workaround** : Focus sur les données de prix en temps réel
-
-**2. Données Simulées dans Flutter**
-- Les graphiques avancés (analytics_screen) utilisent des données simulées pour la démonstration
-- Les données historiques 24h ne sont pas encore stockées dans DuckDB
-- **Prochaine étape** : Implémenter l'historique dans le backend
-
-**3. Docker sur WSL2**
-- Nécessite l'activation manuelle de l'intégration WSL2 dans Docker Desktop
-- Menu : Settings → Resources → WSL Integration → Enable Ubuntu
-- Redémarrage de Docker Desktop requis après activation
-
-#### 📋 Checklist de Déploiement
-
-Pour déployer l'application avec succès :
-
-- [x] Docker Desktop installé et configuré avec WSL2
-- [x] Intégration WSL2 activée dans Docker Desktop
-- [x] Python 3.8+ installé dans WSL
-- [x] Flutter 3.24+ installé
-- [x] Repository cloné avec tous les fichiers source
-- [x] Script `start_system.sh` exécuté pour lancer Kafka et les services
-- [x] API Gateway accessible sur `http://localhost:3000`
-- [x] Producer Kafka collectant les données Binance
-- [x] Application Flutter compilant sans erreurs
-
-#### 🎯 Prochaines Étapes Recommandées
-
-1. **Implémenter l'historique de prix** : Stocker les données dans DuckDB pour afficher de vraies courbes 24h
-2. **Activer les actualités** : Intégrer un feed RSS crypto dans le producer Kafka
-3. **WebSocket pour Flutter** : Remplacer le polling HTTP par des WebSockets pour les mises à jour temps réel
-4. **Tests unitaires** : Ajouter des tests pour les services critiques
-5. **Monitoring** : Mettre en place Grafana pour surveiller les métriques Kafka
 
 ---
 

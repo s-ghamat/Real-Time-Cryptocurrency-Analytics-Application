@@ -17,13 +17,25 @@ import threading
 from collections import deque
 from email.utils import parsedate_to_datetime
 
+# Import PostgreSQL Writer pour Grafana
+try:
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'storage'))
+    from postgres_writer import PostgreSQLWriter
+    POSTGRES_AVAILABLE = True
+except ImportError:
+    POSTGRES_AVAILABLE = False
+    print("⚠️ PostgreSQL Writer non disponible (psycopg2 manquant)")
+
 class SparkAnalyticsBuilder:
     def __init__(self):
         """Initialise l'Analytics Builder avec Spark-like processing"""
         print("🚀 Initialisation de l'Analytics Builder...")
         
         # Configuration Kafka
-        self.kafka_bootstrap_servers = "localhost:9092"
+        # Dans Docker : utiliser le nom du service 'kafka' sur le port 29092
+        # Depuis l'hôte Windows : utiliser localhost:9092
+        kafka_servers_env = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:29092')
+        self.kafka_bootstrap_servers = kafka_servers_env.split(',')[0] if ',' in kafka_servers_env else kafka_servers_env
         self.kafka_topics = ["crypto-prices", "crypto-news"]
         
         # Configuration DuckDB
@@ -39,6 +51,32 @@ class SparkAnalyticsBuilder:
         
         # Initialiser DuckDB
         self.init_duckdb()
+        
+        # Initialiser PostgreSQL Writer pour Grafana
+        self.postgres_writer = None
+        if POSTGRES_AVAILABLE:
+            try:
+                # Configuration PostgreSQL
+                # Dans Docker : utiliser le nom du service 'postgres' sur le port 5432
+                # Depuis l'hôte Windows : utiliser 127.0.0.1:5433 (port mappé)
+                postgres_host = os.getenv('POSTGRES_HOST', 'postgres')
+                postgres_port = int(os.getenv('POSTGRES_PORT', '5432'))
+                
+                postgres_user = os.getenv('POSTGRES_USER', 'admin')
+                postgres_password = os.getenv('POSTGRES_PASSWORD', 'admin')
+                
+                self.postgres_writer = PostgreSQLWriter(
+                    host=postgres_host,
+                    port=postgres_port,
+                    database='crypto',
+                    user=postgres_user,
+                    password=postgres_password
+                )
+                print(f"✅ PostgreSQL Writer initialisé pour Grafana ({postgres_host}:{postgres_port})")
+            except Exception as e:
+                print(f"⚠️ Impossible d'initialiser PostgreSQL Writer: {e}")
+                print(f"   Le consumer continuera sans PostgreSQL (données dans DuckDB uniquement)")
+                self.postgres_writer = None
         
         # Créer le consumer Kafka
         self.consumer = KafkaConsumer(
@@ -332,9 +370,10 @@ class SparkAnalyticsBuilder:
                 symbol_groups[symbol] = []
             symbol_groups[symbol].append(data)
         
-        # Traiter chaque symbole
+                # Traiter chaque symbole
         for symbol, symbol_data in symbol_groups.items():
             try:
+                print(f"💰 Traitement prix pour {symbol}: {len(symbol_data)} messages")
                 # Récupérer l'historique pour les calculs
                 historical_data = self.conn.execute("""
                     SELECT current_price, timestamp 
@@ -344,9 +383,31 @@ class SparkAnalyticsBuilder:
                     LIMIT 100
                 """, [symbol]).df()
                 
+                print(f"📈 Historique disponible pour {symbol}: {len(historical_data)} points")
+                
                 # Ajouter les nouvelles données
                 for data in symbol_data:
-                    current_price = data.get('current_price')
+                    # Mapping des données du producer Kafka vers le format attendu
+                    current_price = data.get('price_usd') or data.get('current_price', 0)
+                    volume_24h = data.get('volume_24h_usd') or data.get('total_volume', 0)
+                    market_cap = data.get('market_cap_usd') or data.get('market_cap', 0)
+                    price_change_24h = data.get('change_24h') or data.get('price_change_percentage_24h', 0)
+                    timestamp_now = datetime.now()
+                    
+                    # Écrire le prix dans PostgreSQL même sans indicateurs
+                    if self.postgres_writer:
+                        try:
+                            self.postgres_writer.write_price(
+                                symbol=symbol,
+                                price=current_price,
+                                volume_24h=volume_24h,
+                                market_cap=market_cap,
+                                price_change_24h=price_change_24h,
+                                timestamp=timestamp_now
+                            )
+                            print(f"✅ Prix {symbol} écrit dans PostgreSQL: ${current_price:.2f}")
+                        except Exception as e:
+                            print(f"⚠️ Erreur écriture prix PostgreSQL {symbol}: {e}")
                     
                     # Calculer les indicateurs techniques
                     if len(historical_data) >= 20:
@@ -362,7 +423,10 @@ class SparkAnalyticsBuilder:
                         indicators = self.calculate_advanced_technical_indicators(symbol, temp_df)
                         
                         if indicators:
-                            # Insérer dans la base
+                            print(f"✅ Indicateurs calculés pour {symbol}: RSI={indicators.get('rsi', 'N/A'):.2f}, MACD={indicators.get('macd', 'N/A'):.2f}")
+                            timestamp_now = datetime.now()
+                            
+                            # Insérer dans DuckDB
                             self.conn.execute("""
                                 INSERT OR REPLACE INTO crypto_analytics 
                                 (symbol, timestamp, current_price, volume_24h, price_change_24h, 
@@ -372,9 +436,8 @@ class SparkAnalyticsBuilder:
                                  volatility_signal)
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (
-                                symbol, datetime.now(), current_price,
-                                data.get('total_volume'), data.get('price_change_24h'),
-                                data.get('price_change_percentage_24h'),
+                                symbol, timestamp_now, current_price,
+                                volume_24h, price_change_24h, price_change_24h,
                                 indicators['sma_5'], indicators['sma_10'], indicators['sma_20'],
                                 indicators['sma_50'], indicators['ema_12'], indicators['ema_26'],
                                 indicators['macd'], indicators['macd_signal'], indicators['rsi'],
@@ -382,6 +445,28 @@ class SparkAnalyticsBuilder:
                                 indicators['volatility'], indicators['trend_signal'],
                                 indicators['momentum_signal'], indicators['volatility_signal']
                             ))
+                            
+                            # Écrire dans PostgreSQL pour Grafana
+                            if self.postgres_writer:
+                                try:
+                                    # Écrire le prix
+                                    self.postgres_writer.write_price(
+                                        symbol=symbol,
+                                        price=current_price,
+                                        volume_24h=volume_24h,
+                                        market_cap=market_cap,
+                                        price_change_24h=price_change_24h,
+                                        timestamp=timestamp_now
+                                    )
+                                    
+                                    # Écrire les indicateurs techniques
+                                    self.postgres_writer.write_indicators(
+                                        symbol=symbol,
+                                        indicators=indicators,
+                                        timestamp=timestamp_now
+                                    )
+                                except Exception as e:
+                                    print(f"⚠️ Erreur écriture PostgreSQL: {e}")
                             
                             # Générer des alertes
                             alerts = self.generate_advanced_alerts(symbol, indicators, current_price)
@@ -436,7 +521,7 @@ class SparkAnalyticsBuilder:
                     # En cas d'échec, utiliser la date actuelle
                     published_at = datetime.now()
                 
-                # Insérer dans la base
+                # Insérer dans DuckDB
                 self.conn.execute("""
                     INSERT OR REPLACE INTO news_sentiment 
                     (id, title, description, url, published_at, source, 
@@ -451,6 +536,19 @@ class SparkAnalyticsBuilder:
                     sentiment['polarity'], sentiment['subjectivity'], sentiment['label'],
                     json.dumps(mentioned_cryptos)
                 ))
+                
+                # Écrire dans PostgreSQL pour Grafana
+                if self.postgres_writer:
+                    try:
+                        self.postgres_writer.write_sentiment(
+                            source=data.get('source', 'unknown'),
+                            sentiment=sentiment['label'],
+                            score=sentiment['polarity'],
+                            title=title,
+                            timestamp=published_at
+                        )
+                    except Exception as e:
+                        print(f"⚠️ Erreur écriture sentiment PostgreSQL: {e}")
                 
                 print(f"📰 News {sentiment['label']}: {title[:50]}... (Cryptos: {mentioned_cryptos})")
                 
@@ -533,6 +631,22 @@ class SparkAnalyticsBuilder:
                 if data is None:
                     continue
                 
+                # Décoder le JSON si c'est une chaîne de caractères
+                if isinstance(data, bytes):
+                    import json
+                    try:
+                        data = json.loads(data.decode('utf-8'))
+                    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+                        print(f"⚠️ Erreur décodage JSON: {e}")
+                        continue
+                elif isinstance(data, str):
+                    import json
+                    try:
+                        data = json.loads(data)
+                    except json.JSONDecodeError as e:
+                        print(f"⚠️ Erreur décodage JSON: {e}")
+                        continue
+                
                 # Ajouter aux buffers pour traitement en batch
                 if topic == "crypto-prices":
                     self.price_buffer.append(data)
@@ -552,6 +666,8 @@ class SparkAnalyticsBuilder:
                 self.processing_thread.join(timeout=5)
             self.consumer.close()
             self.conn.close()
+            if self.postgres_writer:
+                self.postgres_writer.close()
             print("✅ Analytics Builder arrêté proprement")
 
 if __name__ == "__main__":

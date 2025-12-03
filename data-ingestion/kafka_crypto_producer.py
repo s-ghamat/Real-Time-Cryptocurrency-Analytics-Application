@@ -4,6 +4,7 @@ Producteur Kafka pour données crypto
 Collecte et envoie les données vers Kafka
 """
 
+import os
 import json
 import time
 import requests
@@ -12,19 +13,28 @@ from datetime import datetime
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 import xml.etree.ElementTree as ET
+import certifi
+
+# Corriger le problème SSL au démarrage (avant toute requête HTTP)
+# PostgreSQL définit un mauvais chemin SSL_CERT_FILE, on le remplace
+os.environ['SSL_CERT_FILE'] = certifi.where()
+os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class CryptoKafkaProducer:
-    def __init__(self, kafka_servers=['localhost:9092']):
+    def __init__(self, kafka_servers=['localhost:9092'], coingecko_api_key=None):
         """Initialise le producteur Kafka"""
         self.producer = KafkaProducer(
             bootstrap_servers=kafka_servers,
             value_serializer=lambda x: json.dumps(x).encode('utf-8'),
             key_serializer=lambda x: x.encode('utf-8') if x else None
         )
+        
+        # Clé API CoinGecko (optionnelle)
+        self.coingecko_api_key = coingecko_api_key or os.getenv('COINGECKO_API_KEY')
         
         # Topics Kafka
         self.topics = {
@@ -60,24 +70,31 @@ class CryptoKafkaProducer:
             timestamp = datetime.now().isoformat()
             collected = 0
 
+            # Récupérer les market caps depuis CoinGecko (une seule requête)
+            market_caps = self._fetch_market_caps_from_coingecko()
+
             for crypto_name, pair in binance_pairs.items():
                 try:
-                    # Binance price ticker
+                    # Binance price ticker (temps réel, sans limite)
                     price_url = f"{self.apis['binance']}/ticker/24hr?symbol={pair}"
-                    response = requests.get(price_url, timeout=5)
+                    response = requests.get(price_url, timeout=5, verify=certifi.where())
 
                     if response.status_code == 200:
                         data = response.json()
+                        price_usd = float(data.get('lastPrice', 0))
+
+                        # Récupérer les données enrichies de CoinGecko si disponibles
+                        cg_data = market_caps.get(crypto_name, {})
 
                         price_data = {
                             'timestamp': timestamp,
                             'symbol': crypto_name,
-                            'price_usd': float(data.get('lastPrice', 0)),
-                            'price_eur': float(data.get('lastPrice', 0)) * 0.92,  # Approximation EUR
-                            'market_cap_usd': 0,  # Binance ne fournit pas market cap
-                            'volume_24h_usd': float(data.get('volume', 0)) * float(data.get('lastPrice', 0)),
+                            'price_usd': price_usd,
+                            'price_eur': cg_data.get('eur', price_usd * 0.92),  # CoinGecko ou approximation
+                            'market_cap_usd': cg_data.get('market_cap', 0),  # Depuis CoinGecko
+                            'volume_24h_usd': float(data.get('volume', 0)) * price_usd,
                             'change_24h': float(data.get('priceChangePercent', 0)),
-                            'source': 'binance'
+                            'source': 'binance+coingecko'
                         }
 
                         # Envoie vers Kafka
@@ -104,7 +121,7 @@ class CryptoKafkaProducer:
             ('cointribune', self.apis['cointribune'])
         ]:
             try:
-                response = requests.get(rss_url, timeout=10)
+                response = requests.get(rss_url, timeout=10, verify=certifi.where())
                 if response.status_code == 200:
                     root = ET.fromstring(response.content)
                     
@@ -142,7 +159,42 @@ class CryptoKafkaProducer:
         
         logger.info(f"Actualités collectées: {news_collected}")
         return news_collected > 0
-    
+
+    def _fetch_market_caps_from_coingecko(self):
+        """Récupère les market caps et prix EUR depuis CoinGecko (une requête groupée)"""
+        try:
+            url = f"{self.apis['coingecko']}/simple/price"
+            params = {
+                'ids': ','.join(self.crypto_symbols),
+                'vs_currencies': 'usd,eur',
+                'include_market_cap': 'true',
+                'include_24hr_vol': 'true'
+            }
+
+            headers = {}
+            if self.coingecko_api_key:
+                headers['x-cg-demo-api-key'] = self.coingecko_api_key
+
+            response = requests.get(url, params=params, headers=headers, timeout=10, verify=certifi.where())
+
+            if response.status_code == 200:
+                data = response.json()
+                result = {}
+                for crypto, info in data.items():
+                    result[crypto] = {
+                        'eur': info.get('eur', 0),
+                        'market_cap': info.get('usd_market_cap', 0)
+                    }
+                logger.debug(f"CoinGecko: données enrichies récupérées pour {len(result)} cryptos")
+                return result
+            else:
+                logger.warning(f"CoinGecko API: status {response.status_code}")
+                return {}
+
+        except Exception as e:
+            logger.warning(f"Impossible de récupérer les données CoinGecko: {e}")
+            return {}
+
     def _is_crypto_related(self, title, description):
         """Vérifie si l'article est lié aux cryptomonnaies"""
         crypto_keywords = [
@@ -212,12 +264,17 @@ class CryptoKafkaProducer:
         self.producer.close()
 
 if __name__ == "__main__":
-    import os
-    
     # Configuration Kafka depuis les variables d'environnement
     kafka_servers = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092').split(',')
+    coingecko_api_key = os.getenv('COINGECKO_API_KEY', None)
     
-    producer = CryptoKafkaProducer(kafka_servers)
+    if coingecko_api_key:
+        logger.info("✅ Clé API CoinGecko détectée")
+    else:
+        logger.info("ℹ️  Aucune clé API CoinGecko - utilisation du plan gratuit (50 req/min)")
+        logger.info("   Pour plus de limites, créez une clé sur https://www.coingecko.com/en/api/pricing")
+    
+    producer = CryptoKafkaProducer(kafka_servers, coingecko_api_key=coingecko_api_key)
     
     try:
         producer.run_continuous_collection()
