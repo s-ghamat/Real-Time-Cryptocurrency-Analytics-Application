@@ -70,3 +70,7 @@ metastore_db/
 # Environment variables
 .env
 .env.local
+
+# PID files (process management)
+*.pid
+.*.pid
