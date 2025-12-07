@@ -47,8 +47,11 @@ logs/
 
 # Database files
 *.db
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
+analytics/crypto_analytics.db*
 
 # Data files
 data/raw/
