@@ -1,19 +1,28 @@
 apiVersion: 1
 
+deleteDatasources:
+  - name: PostgreSQL
+    orgId: 1
+
 datasources:
   - name: PostgreSQL
     type: postgres
+    uid: postgres
+    orgId: 1
     access: proxy
     url: postgres:5432
-    database: crypto
     user: admin
+    basicAuth: false
+    isDefault: true
+    editable: true
     secureJsonData:
       password: admin
     jsonData:
+      database: crypto
       sslmode: disable
+      maxOpenConns: 100
+      maxIdleConns: 100
+      maxIdleConnsAuto: true
+      connMaxLifetime: 14400
       postgresVersion: 1500
       timescaledb: false
-    isDefault: true
-    editable: true
-
-

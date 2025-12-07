@@ -13,7 +13,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
       "targets": [
         {
-          "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "postgres"},
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
@@ -46,7 +46,7 @@
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
       "targets": [
         {
-          "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "postgres"},
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
@@ -79,7 +79,7 @@
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
       "targets": [
         {
-          "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "postgres"},
           "editorMode": "code",
           "format": "time_series",
           "rawQuery": true,
@@ -105,7 +105,7 @@
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
       "targets": [
         {
-          "datasource": {"type": "postgres", "uid": "PCC52D03280B7034C"},
+          "datasource": {"type": "grafana-postgresql-datasource", "uid": "postgres"},
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
