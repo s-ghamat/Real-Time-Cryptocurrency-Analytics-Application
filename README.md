@@ -1,32 +1,117 @@
-# T-DAT-901 - Xtreme Dashboarding
+# Xtreme Dashboarding
 
-## 🎯 Mission
-Système de monitoring big data pour analyser les flux d'actualités cryptomonnaies en temps réel.
+Real-time big data monitoring system for cryptocurrency news flows.
 
-## 📋 Objectifs
-1. **Collecte Continue** - Flux d'actualités cryptomonnaies
-2. **Traitement Temps Réel** - Analytics avec Apache Spark
-3. **Visualisation Dynamique** - Dashboard interactif
+The project collects crypto-related news, processes the stream with Apache Spark, stores the results, and displays analytics through an interactive dashboard.
 
-## 🏗️ Architecture
+## Overview
+
+Xtreme Dashboarding is designed as a streaming analytics platform.
+
+It follows a simple big data pipeline:
+
+```text
+Data Sources → Kafka → Spark → Storage → Dashboard
 ```
-[Data Sources] → [Kafka] → [Spark] → [Storage] → [Dashboard]
+
+## Goals
+
+* Collect cryptocurrency news continuously
+* Stream data through Apache Kafka
+* Process and analyze events with Apache Spark
+* Store structured results
+* Display live metrics and visualizations
+* Provide a reproducible Docker-based environment
+
+## Architecture
+
+| Layer          | Role                                    |
+| -------------- | --------------------------------------- |
+| Data ingestion | Collect news data from external sources |
+| Kafka          | Stream events between services          |
+| Spark          | Process and analyze incoming data       |
+| Storage        | Persist processed results               |
+| Dashboard      | Visualize metrics and trends            |
+| Docker         | Run the platform consistently           |
+
+## Technologies
+
+* Apache Kafka
+* Apache Spark
+* Docker
+* Python
+* Grafana
+* Plotly
+
+## Project Structure
+
+```text
+.
+├── data-ingestion/
+├── kafka/
+├── spark/
+├── storage/
+├── dashboard/
+├── docker/
+└── docs/
 ```
 
-## 🛠️ Technologies
-- **Apache Kafka** - Streaming de données
-- **Apache Spark** - Traitement big data
-- **Docker** - Conteneurisation
-- **Python** - Scripts de scraping et analyse
-- **Grafana/Plotly** - Visualisation
+## Components
 
-## 📁 Structure du projet
+### Data Ingestion
+
+Python scripts collect cryptocurrency news from selected sources and publish events to Kafka topics.
+
+### Kafka
+
+Kafka handles the real-time data stream between ingestion services and processing jobs.
+
+### Spark
+
+Spark jobs consume Kafka events, transform the data, and compute analytics.
+
+### Storage
+
+Processed data is stored for dashboard consumption and later analysis.
+
+### Dashboard
+
+The dashboard provides live visualizations for cryptocurrency news activity, trends, and monitoring metrics.
+
+### Docker
+
+Docker configuration is used to simplify deployment and make the environment reproducible.
+
+## Usage
+
+Start the platform from the Docker configuration:
+
+```sh
+docker compose up --build
 ```
-├── data-ingestion/     # Scripts de collecte de données
-├── kafka/             # Configuration Kafka
-├── spark/             # Jobs Spark pour le traitement
-├── storage/           # Base de données et stockage
-├── dashboard/         # Interface de visualisation
-├── docker/            # Configurations Docker
-└── docs/              # Documentation
+
+Run the data ingestion service:
+
+```sh
+python data-ingestion/main.py
 ```
+
+Run the Spark processing job:
+
+```sh
+python spark/main.py
+```
+
+Open the dashboard according to the dashboard service configuration.
+
+## Documentation
+
+Additional setup notes, architecture details, and operating instructions are available in:
+
+```text
+docs/
+```
+
+## Author
+
+Setayesh Ghamat
