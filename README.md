@@ -2,7 +2,7 @@
 
 Real-time big data monitoring system for cryptocurrency news flows.
 
-The project collects crypto-related news, processes the stream with Apache Spark, stores the results, and displays analytics through an interactive dashboard.
+The project collects crypto-related news, processes the stream with Apache Spark, stores the results and displays analytics through an interactive dashboard.
 
 ## Overview
 
